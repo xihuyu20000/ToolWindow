@@ -25,6 +25,7 @@ class WebEngineView(QWebView):
         super(WebEngineView, self).__init__(parent)
         self.SELECT_FLAG = True
         self.covering = QLabel(self)
+        self.current_block = None
 
     def _initCover(self):
         '''
@@ -62,6 +63,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.showMaximized()
         self.statusLabel = QLabel()
         self.statusBar().addWidget(self.statusLabel)
+
         self.browser = WebEngineView()
         self._loadBrowser("https://www.defense.gov/Explore/News/Listing/")
         self.browserLayout.addWidget(self.browser)
@@ -75,6 +77,13 @@ class MainWin(QMainWindow, Ui_MainWindow):
 
         self.fields = []
 
+    @pyqtSlot()
+    def loadUrl(self):
+        '''
+        加载新页面
+        :return:
+        '''
+        self._loadBrowser(self.lineEdit_url.text())
 
     def _loadBrowser(self, url):
         self.lineEdit_url.setText(url)
@@ -83,14 +92,6 @@ class MainWin(QMainWindow, Ui_MainWindow):
         else:
             self._url = 'http://'+url
         self.browser.load(QUrl(self._url))
-
-    @pyqtSlot()
-    def loadUrl(self):
-        '''
-        加载新页面
-        :return:
-        '''
-        self._loadBrowser(self.lineEdit_url.text())
 
     ##################################################################################################################
     def _initBrowserLoadSignalSlot(self):
@@ -131,6 +132,9 @@ class MainWin(QMainWindow, Ui_MainWindow):
 
     @pyqtSlot()
     def on_browserSelectParent(self):
+        if self.browser.current_block==None:
+            QMessageBox.about(self, self.tr('提示'), self.tr('请先选中元素'))
+            return
         self.browser.current_block = self.browser.current_block.parent()
         self.browser.covering.hide()
         self.browser._initCover()
