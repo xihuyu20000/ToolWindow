@@ -1,19 +1,81 @@
 import re
 import sys,os,copy
 import time
-
+import json
 from PyQt5.QtCore import QUrl, pyqtSlot, QSize, QPoint
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWebKitWidgets import QWebPage, QWebView
 from PyQt5.QtWidgets import QLabel, QMainWindow, QHeaderView, QMessageBox, QTableWidgetItem, QApplication, QButtonGroup
+from apscheduler.jobstores import redis
 from qtpy import QtCore
 from pyquery import PyQuery as pq
 from lxml import etree
 
-from Designer_main import DesignerWin
+
 from ToolWindow import Ui_MainWindow
 ####使用webkit
 
+class Log():
+    def info(self, *msg):
+        print('【log info】', time.strftime("%Y-%m-%d %H:%M:%S"), msg)
+    def error(self, *msg):
+        print('【log error】', time.strftime("%Y-%m-%d %H:%M:%S"), msg)
+
+class RedisConfig():
+    def __init__(self, password=None, host='127.0.0.1', port=6379):
+        self.password = password
+        self.host = host
+        self.port = port
+class ConsoleSink():
+    def __init__(self, sep='\t\t'):
+        self.sep = sep
+
+class FileSink():
+    def __init__(self, filename, sep):
+        self.filename = filename
+        self.sep = sep
+
+class RedisUtil():
+    def __init__(self, config):
+        self.config = config
+        self.pool = redis.ConnectionPool(host=self.config.host, port=self.config.port, password=self.config.password)
+        self.r = redis.Redis(connection_pool=self.pool)
+
+    def isDuplicated(self, name, value):
+        '''
+        判断是否重复
+        :param name:
+        :param value:
+        :return:
+        '''
+        ret = self.r.sismember(name, value)
+        if ret==False:
+            self.r.sadd(name, value)
+        return ret
+class Sink():
+    def __init__(self, task):
+        self.task = task
+
+    def run(self):
+        if isinstance(self.task.sink, ConsoleSink):
+            print('***************************************************************************************')
+            print(self.task.sink.sep.join(self.task.titles))
+            for row in self.task.rows:
+                print(self.task.sink.sep.join(row))
+        elif isinstance(self.task.sink, FileSink):
+            filepath = os.path.join(self.task.sink.dirpath, self.task.sink.filename)
+            with open(filepath, 'a', encoding='utf-8') as f:
+                f.write(self.task.sink.sep.join(self.task.titles))
+                f.write('\r\n')
+                for row in self.task.rows:
+                    f.write(self.task.sink.sep.join(row))
+                    f.write('\r\n')
+class FileSource():
+    def __init__(self, dirpath, filename, sep='\t', index=0):
+        self.dirpath = dirpath
+        self.filename = filename
+        self.sep = sep
+        self.index = index
 
 class DataUtil():
     @staticmethod
@@ -120,6 +182,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.pushButton_pager_preview.clicked.connect(self.on_pager_preview_clicked)
 
         self.pushButton_exportTask.clicked.connect(self.on_exportTask_clicked)
+
 
 
     @pyqtSlot()
@@ -357,41 +420,37 @@ class MainWin(QMainWindow, Ui_MainWindow):
                 QMessageBox.about(self, self.tr('提示'), self.tr(str(e)))
 
     def on_exportTask_clicked(self):
-        pass
+        if self.lineEdit_taskName.text()==None:
+            QMessageBox.about(self, self.tr('提示'), self.tr('请输入任务名称'))
+            return
+
+        try:
+            task = Task(self.lineEdit_taskName.text())
+            task.source = self.plainTextEdit_urls.toPlainText().split('\n')
+            for i in range(self.itemModel.rowCount()):
+                task.fields.append(self.itemModel.item(i, 0).data().__dict__)
+            task.pager = self.pagermodel.__dict__
+            task.deduplication = self.checkBox_pager_is.isChecked()
+
+            if self.checkBox_savefile_is.isChecked():
+                task.sinks.append(FileSink(self.lineEdit_savefile_filename.text(), self.lineEdit_savefile_sep.text()).__dict__)
+
+            with open(os.path.join(os.path.join(os.path.expanduser('~'), "Desktop"), '爬虫任务.txt'), 'w', encoding='utf8') as f:
+                f.write(json.dumps(task.__dict__ , ensure_ascii=False))
+            QMessageBox.about(self, self.tr('提示'), self.tr('数据已经保存到桌面'))
+        except Exception as e:
+            QMessageBox.about(self, self.tr('提示'), self.tr(str(e)))
+
 
 
 class Task():
-    def __init__(self, name, baseUrl, source=None, sink=None, deduplication=False, method='get', rettype='text', headers=None, params=None, log = Log()):
-        '''
-        :param name: str
-        :param baseUrl: str
-        :param source: 表示来源
-        :param sink: 表示目的地
-        :param deduplication: bool, 是否去重，True还是False，默认不去重
-        :param method: str，可能是get或post
-        :param rettype: str，可能是text或json
-        :param headers: dict
-        :param params: dict
-        '''
+    def __init__(self, name, source=None, sinks=[], fields=[], pager=None, deduplication=False):
         self.name = name
-        self.baseUrl = baseUrl
-        self.urls = []
         self.source = source
-        self.sink = sink if sink else ConsoleSink()
+        self.sinks = sinks
+        self.fields = fields
+        self.pager = pager
         self.deduplication = deduplication
-        self.method = method
-        self.rettype = rettype
-        self.headers = headers
-        self.params = params
-        self.fields = []
-        self.pager = None
-        self.content = ''
-        self.titles = []
-        self.rows = []
-        self.log = Log()
-
-    def __str__(self):
-        return 'name={}  baseUrl={}  method={}  rettype={}  headers={}  params={}'.format(self.name, self.baseUrl, self.method, self.rettype, self.headers, self.params)
 
 
 
