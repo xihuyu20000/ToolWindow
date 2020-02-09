@@ -1,15 +1,38 @@
-import sys,os
+import re
+import sys,os,copy
+import time
 
 from PyQt5.QtCore import QUrl, pyqtSlot, QSize, QPoint
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWebKitWidgets import QWebPage, QWebView
-from PyQt5.QtWidgets import QLabel, QMainWindow, QHeaderView, QMessageBox, QTableWidgetItem, QApplication
+from PyQt5.QtWidgets import QLabel, QMainWindow, QHeaderView, QMessageBox, QTableWidgetItem, QApplication, QButtonGroup
 from qtpy import QtCore
 from pyquery import PyQuery as pq
 from lxml import etree
+
+from Designer_main import DesignerWin
 from ToolWindow import Ui_MainWindow
 ####使用webkit
 
+
+class DataUtil():
+    @staticmethod
+    def formatDate(t, format):
+        '''
+        格式化日期时间
+        :param t:
+        :param format:
+        :return:
+        '''
+        format = format.replace('年', '%Y')
+        format = format.replace('月', '%m')
+        format = format.replace('日', '%d')
+        format = format.replace('时', '%H')
+        format = format.replace('分', '%M')
+        format = format.replace('秒', '%S')
+        timeStruct = time.strptime(t, format)
+        strTime = time.strftime("%Y-%m-%d %H:%M:%S", timeStruct)
+        return strTime
 
 class WebPage(QWebPage):
     def __init__(self, parent=None):
@@ -61,21 +84,43 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.setupUi(self)
         self.setWindowTitle('爬虫助手，非常方便  QQ群692711347')
         self.showMaximized()
+
         self.statusLabel = QLabel()
+        self.statusLabel.setMaximumWidth(500)
         self.statusBar().addWidget(self.statusLabel)
 
         self.browser = WebEngineView()
-        self._loadBrowser("https://www.defense.gov/Explore/News/Listing/")
-        self.browserLayout.addWidget(self.browser)
+        self._loadBrowser("https://stackoverflow.com/search?q=python++class+copy")
+        self.verticalLayout_browser.addWidget(self.browser)
 
-        self.tableWidget_defineField.setColumnCount(2)
-        self.tableWidget_defineField.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.tableWidget_defineField.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.tableWidget_defineField.setHorizontalHeaderLabels(['字段名', '提取方式'])
-        self._initBrowserLoadSignalSlot()
-        self._initBrowserToolsSignalSlot()
+        self.browser.loadFinished.connect(self.on_browserLoadFinished)
+        self.browser.loadProgress.connect(self.on_browserLoadProcess)
 
-        self.fields = []
+        self.pushButton_browserSelect.clicked.connect(self.on_browserSelect)
+        self.pushButton_browserUnselect.clicked.connect(self.on_browserUnselect)
+        self.pushButton_browserSelectParent.clicked.connect(self.on_browserSelectParent)
+        self.pushButton_browserExtractText.clicked.connect(self.on_browserExtractText)
+
+        self.field_group =QButtonGroup()
+        self.field_group.addButton(self.radioButton_field_xpath)
+        self.field_group.addButton(self.radioButton_field_headtail)
+        self.current_item = None
+        self.pagermodel = PagerModel()
+        self.itemModel = QStandardItemModel()
+        self.itemModel.dataChanged.connect(self.on_fields_model_dataChanged)
+        self.listView_fields.setModel(self.itemModel)
+        self.listView_fields.clicked.connect(self.on_fields_clicked)
+
+        self.pushButton_fieldAdd.clicked.connect(self.on_fieldAdd_clicked)
+        self.pushButton_fieldRemove.clicked.connect(self.on_fieldRemove_clicked)
+        self.pushButton_fieldCopy.clicked.connect(self.on_fieldCopy_clicked)
+        self.pushButton_fieldSave.clicked.connect(self.on_fieldSave_clicked)
+        self.pushButton_fieldPreview.clicked.connect(self.on_fieldPreview_clicked)
+        self.pushButton_export.clicked.connect(self.on_export_clicked)
+        self.pushButton_pager_preview.clicked.connect(self.on_pager_preview_clicked)
+
+        self.pushButton_exportTask.clicked.connect(self.on_exportTask_clicked)
+
 
     @pyqtSlot()
     def loadUrl(self):
@@ -94,10 +139,6 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.browser.load(QUrl(self._url))
 
     ##################################################################################################################
-    def _initBrowserLoadSignalSlot(self):
-        self.browser.loadFinished.connect(self.on_browserLoadFinished)
-        self.browser.loadProgress.connect(self.on_browserLoadProcess)
-
     @pyqtSlot(int)
     def on_browserLoadProcess(self, process):
         self.statusLabel.setText('加载进度{}%'.format(process))
@@ -107,19 +148,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.statusLabel.setText('页面加载完成')
 
     ##################################################################################################################
-    def _initBrowserToolsSignalSlot(self):
-        '''
-        初始化操作信号和槽
-        :return:
-        '''
-        self.pushButton_browserSelect.clicked.connect(self.on_browserSelect)
-        self.pushButton_browserUnselect.clicked.connect(self.on_browserUnselect)
-        self.pushButton_browserSelectParent.clicked.connect(self.on_browserSelectParent)
-        self.pushButton_browserExtractText.clicked.connect(self.on_browserExtractText)
-        self.pushButton_defineField_addRow.clicked.connect(self.on_defineField_addRow)
-        self.pushButton_defineField_removeRow.clicked.connect(self.on_defineField_removeRow)
-        self.pushButton_alldata_showData.clicked.connect(self.on_alldata_showData)
-        self.pushButton_alldata_export.clicked.connect(self.on_pushButton_alldata_export)
+
 
     @pyqtSlot()
     def on_browserSelect(self):
@@ -162,96 +191,226 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.plainTextEdit_html.setPlainText(pretty)
 
 
-    @pyqtSlot()
-    def on_defineField_addRow(self):
+    def on_fields_model_dataChanged(self):
         '''
-        添加行
+        修改名称
         :return:
         '''
-        self.tableWidget_defineField.setRowCount(self.tableWidget_defineField.rowCount()+1)
-        self.tableWidget_defineField.setItem(self.tableWidget_defineField.rowCount(), 0, QTableWidgetItem('字段名称'))
-        self.tableWidget_defineField.setItem(self.tableWidget_defineField.rowCount(), 1, QTableWidgetItem('提取方式'))
+        self.current_item.data().name =self.current_item.text()
 
-    @pyqtSlot()
-    def on_defineField_removeRow(self):
+    def on_fields_clicked(self, modelIndex):
         '''
-        删除行
+        选择不同的字段
+        :param modelIndex:
         :return:
         '''
-        self.tableWidget_defineField.removeRow(self.tableWidget_defineField.currentRow())
+        self.current_item = self.itemModel.itemFromIndex(modelIndex)
+        fieldModel = self.current_item.data()
+        if fieldModel.style=='xpath':
+            self.radioButton_field_xpath.setChecked(True)
+        if fieldModel.style=='headtail':
+            self.radioButton_field_headtail.setChecked(True)
+        self.lineEdit_field_express.setText(fieldModel.express)
+        self.checkBox_field_headinclude.setChecked(fieldModel.headinclude)
+        self.checkBox_field_tailinclude.setChecked(fieldModel.tailinclude)
+        self.textEdit_field_head.setText(fieldModel.head)
+        self.textEdit_field_tail.setText(fieldModel.tail)
+        self.lineEdit_field_datepattern.setText(fieldModel.datepattern)
 
-    @pyqtSlot()
-    def on_alldata_showData(self):
+    def on_fieldAdd_clicked(self):
+        item = QStandardItem('字段')
+        item.setData(FieldModel('字段'))
+        self.itemModel.appendRow(item)
+
+    def on_fieldRemove_clicked(self):
+        index = self.listView_fields.currentIndex()
+        if index.row()>-1:
+            self.itemModel.removeRow(index.row())
+            self.current_item = None
+
+    def on_fieldCopy_clicked(self):
+        if self.current_item==None:
+            QMessageBox.about(self, self.tr('提示'), self.tr('请先选择一个字段'))
+            return
+
+        self.on_fieldSave_clicked()
+
+        item = QStandardItem(self.current_item.text())
+        item.setData(copy.deepcopy(self.current_item.data()))
+        self.itemModel.appendRow(item)
+
+    def on_fieldSave_clicked(self):
+        '''
+        保存
+        :return:
+        '''
+        if self.current_item==None:
+            self.current_item = self.itemModel.item(0,0)
+        fieldModel = self.current_item.data()
+        if self.radioButton_field_xpath.isChecked():
+            fieldModel.style = 'xpath'
+        if self.radioButton_field_headtail.isChecked():
+            fieldModel.style = 'headtail'
+        fieldModel.express = self.lineEdit_field_express.text()
+        fieldModel.head = self.textEdit_field_head.toPlainText()
+        fieldModel.tail = self.textEdit_field_tail.toPlainText()
+        fieldModel.headinclude = self.checkBox_field_headinclude.isChecked()
+        fieldModel.tailinclude = self.checkBox_field_tailinclude.isChecked()
+        fieldModel.datepattern = self.lineEdit_field_datepattern.text()
+        self.current_item.setData(fieldModel)
+
+        if self.checkBox_pager_is.isChecked():
+            self.pagermodel.express = self.lineEdit_pager_express.text()
+
+    def on_fieldPreview_clicked(self):
         '''
         显示数据
         :return:
         '''
-        root = etree.HTML(self.browser.page().currentFrame().toHtml())
+        content = self.browser.page().currentFrame().toHtml()
+        root = etree.HTML(content)
 
         try:
-            self.fields = []
-            for i in range(self.tableWidget_defineField.rowCount()):
-                if self.tableWidget_defineField.item(i, 0) == None \
-                        or self.tableWidget_defineField.item(i, 1) == None \
-                        or self.tableWidget_defineField.item(i, 0).text() == '' \
-                        or self.tableWidget_defineField.item(i, 1).text() == '':
-                    QMessageBox.about(self, self.tr('提示'), self.tr('第{}行的数据，不允许空'.format(i)))
-                    return
-                name = self.tableWidget_defineField.item(i, 0).text()
-                express = self.tableWidget_defineField.item(i, 1).text()
-                self.fields.append(Field(name, express, [item.strip() for item in root.xpath(express)]))
+            for i in range(self.itemModel.rowCount()):
+                fieldModel = self.itemModel.item(i, 0).data()
+                print(fieldModel.name, fieldModel.style)
+                if fieldModel.style=='xpath':
+                    fieldModel.values = [item.strip() for item in root.xpath(fieldModel.express)]
+                elif fieldModel.style=='headtail':
+                    heads = re.findall(fieldModel.head, content)
+                    if len(heads)!=1:
+                        raise Exception('头部解析不合适', heads)
+                    tails = re.findall(fieldModel.tail, content)
+                    if len(tails)!=1:
+                        raise Exception('尾部解析不合适', heads)
 
-            if len(self.fields) == 0:
-                QMessageBox.about(self, self.tr('提示'), self.tr('没有数据'))
-                return
+                    head_pos = content.find(heads[0])
+                    head_pos =  head_pos if fieldModel.headinclude else head_pos+len(heads[0])
+                    tail_pos = content.find(tails[0])
+                    tail_pos = tail_pos + len(tails[0]) if fieldModel.tailinclude else tail_pos
+                    fieldModel.values = [content[head_pos:tail_pos]]
+                else:
+                    # self.task.log.error('解析类型错误', fieldModel.style)
+                    raise Exception('解析类型错误')
+
+                ##################处理字段信息
+                resu = []
+                for value in fieldModel.values:
+                    value = str(value).strip()
+                    if fieldModel.datepattern:
+                        resu.append(DataUtil.formatDate(value, fieldModel.datepattern))
+                    else:
+                        resu.append(value)
+                fieldModel.values = resu
+                # self.task.log.info('解析字段', fieldModel.name, fieldModel.result)
+
+                self.itemModel.item(i, 0).setData(fieldModel)
+
+            model = QStandardItemModel()
+            labels = []
+            for column in range(self.itemModel.rowCount()):
+                labels.append(self.itemModel.item(column, 0).data().name)
+                values = self.itemModel.item(column, 0).data().values
+                for row in range(len(values)):
+                    model.setItem(row, column, QStandardItem(values[row]))
+            model.setHorizontalHeaderLabels(labels)
+            self.tableView_alldata.setModel(model)
+            self.statusLabel.setText('正确显示数据')
         except Exception as e:
-            self.textBrowser_info.setText(str(e))
-            return
+            QMessageBox.about(self, self.tr('提示'), self.tr(str(e)))
 
-        model = QStandardItemModel()
-        model.setHorizontalHeaderLabels([f.name for f in self.fields])
 
-        for row in range(len(self.fields[0].values)):
-            for column in range(len(self.fields)):
-                item = QStandardItem(self.fields[column].values[row])
-                # 设置每个位置的文本值
-                model.setItem(row, column, item)
-
-        self.tableView_alldata.setModel(model)
-        self.statusLabel.setText('正确显示数据')
-
-    @pyqtSlot()
-    def on_pushButton_alldata_export(self):
+    def on_export_clicked(self):
         '''
         导出数据
         :return:
         '''
-        if len(self.fields) == 0:
-            QMessageBox.about(self, self.tr('提示'), self.tr('没有数据'))
-            return False
         import xlwt
         wb = xlwt.Workbook(encoding='utf8')  # 创建实例，并且规定编码
         ws = wb.add_sheet('第一个')  # 设置工作表名称
 
-        for column in range(len(self.fields)):
-            ws.write(0, column, self.fields[column].name)
+        labels = []
+        for column in range(self.itemModel.rowCount()):
+            labels.append(self.itemModel.item(column, 0).data().name)
+            values = self.itemModel.item(column, 0).data().values
+            for row in range(len(values)):
+                ws.write(row+1, column, values[row])
 
-        for row in range(len(self.fields[0].values)):
-            for column in range(len(self.fields)):
-                ws.write(row+1, column, self.fields[column].values[row])
-        xlspath = os.path.join(os.path.join(os.path.expanduser('~'), "Desktop"), '爬虫数据.xls')
-        wb.save(xlspath)
+        for i in range(len(labels)):
+            ws.write(0, i, labels[i])
+
+        wb.save(os.path.join(os.path.join(os.path.expanduser('~'), "Desktop"), '爬虫数据.xls'))
         QMessageBox.about(self, self.tr('提示'), self.tr('数据已经保存到桌面'))
 
+    def on_pager_preview_clicked(self):
+        if self.checkBox_pager_is.isChecked():
+            root = etree.HTML(self.browser.page().currentFrame().toHtml())
 
-class Field():
-    def __init__(self, name, express, value, width=100):
+            try:
+                model = QStandardItemModel()
+                for index,page in enumerate(root.xpath(self.lineEdit_pager_express.text())):
+                    model.setItem(index, 0, QStandardItem(page))
+                model.setHorizontalHeaderLabels([''])
+                self.tableView_alldata.setModel(model)
+                self.statusLabel.setText('正确显示数据')
+            except Exception as e:
+                QMessageBox.about(self, self.tr('提示'), self.tr(str(e)))
+
+    def on_exportTask_clicked(self):
+        pass
+
+
+class Task():
+    def __init__(self, name, baseUrl, source=None, sink=None, deduplication=False, method='get', rettype='text', headers=None, params=None, log = Log()):
+        '''
+        :param name: str
+        :param baseUrl: str
+        :param source: 表示来源
+        :param sink: 表示目的地
+        :param deduplication: bool, 是否去重，True还是False，默认不去重
+        :param method: str，可能是get或post
+        :param rettype: str，可能是text或json
+        :param headers: dict
+        :param params: dict
+        '''
         self.name = name
+        self.baseUrl = baseUrl
+        self.urls = []
+        self.source = source
+        self.sink = sink if sink else ConsoleSink()
+        self.deduplication = deduplication
+        self.method = method
+        self.rettype = rettype
+        self.headers = headers
+        self.params = params
+        self.fields = []
+        self.pager = None
+        self.content = ''
+        self.titles = []
+        self.rows = []
+        self.log = Log()
+
+    def __str__(self):
+        return 'name={}  baseUrl={}  method={}  rettype={}  headers={}  params={}'.format(self.name, self.baseUrl, self.method, self.rettype, self.headers, self.params)
+
+
+
+class FieldModel(object):
+    def __init__(self, name, style='xpath', express='', headinclude=True, head='', tailinclude=False, tail='', datepattern=''):
+        self.name = name
+        self.style = style
         self.express = express
-        self.values = value
-        self.width = width
+        self.headinclude = headinclude
+        self.head = head
+        self.tailinclude = tailinclude
+        self.tail = tail
+        self.datepattern = datepattern
+        self.values = []
 
 
+class PagerModel():
+    def __init__(self, express=None):
+        self.express = express
 
 
 

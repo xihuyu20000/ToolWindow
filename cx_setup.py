@@ -10,4 +10,4 @@ setup(
     version="1.0",
     description="交流QQ群 692711347",
     author="吴超",
-    executables=[Executable("ToolWindow_main.py", base=base, targetName="SpiderTool20200207.exe")])
+    executables=[Executable("ToolWindow_main.py", base=base, targetName="SpiderTool20200210.exe")])

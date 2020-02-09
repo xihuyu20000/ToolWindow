@@ -51,7 +51,7 @@ class Task():
         return 'name={}  baseUrl={}  method={}  rettype={}  headers={}  params={}'.format(self.name, self.baseUrl, self.method, self.rettype, self.headers, self.params)
 
 class Field():
-    def __init__(self, name, style='xpath', express=None, head=None, headinclude=True, tail=None, tailinclude=False, type=None, format=None):
+    def __init__(self, name, style='xpath', express=None, head=None, headinclude=True, tail=None, tailinclude=False, format=None):
         '''
         需要提取的字段
         :param name: 字段名称
@@ -61,7 +61,6 @@ class Field():
         :param headinclude: bool, 是否包含头部， 默认是True
         :param tail: 提取方式，结尾部分
         :param tailinclude: bool, 是否包含尾部，默认是False
-        :param type: str，字段的类型，是str、number、date
         :param format: 处理字段
         '''
         self.name = name
@@ -71,7 +70,6 @@ class Field():
         self.headinclude = headinclude
         self.tail = tail
         self.tailinclude = tailinclude
-        self.type = type
         self.format = format
         self.result = []
 
