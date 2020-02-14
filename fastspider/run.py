@@ -1,3 +1,5 @@
+from pyecharts.charts import Bar
+
 from fastspider.spider import *
 
 def a():
@@ -42,4 +44,19 @@ def c():
 
     spider = Spider(task, redisUtil=RedisUtil(RedisConfig()))
     spider.run()
-c()
+
+
+def d():
+    import execjs
+    ret = execjs.compile().call('parse', 'aaaaaa')
+    print(ret)
+
+
+def e():
+
+    bar = Bar()
+    bar.add_xaxis(["衬衫", "羊毛衫", "雪纺衫", "裤子", "高跟鞋", "袜子"])
+    bar.add_yaxis('服务站',  [5, 20, 36, 10, 75, 90])
+    bar.render()
+
+e()

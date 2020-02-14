@@ -1,100 +1,58 @@
-import re
-import sys,os,copy
+import sys
+import os
+import copy
 import time
 import json
+import tempfile,uuid
+
+import demjson
+import requests
+
+import execjs
 from PyQt5.QtCore import QUrl, pyqtSlot, QSize, QPoint
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
+from PyQt5.QtWebKit import QWebSettings
 from PyQt5.QtWebKitWidgets import QWebPage, QWebView
-from PyQt5.QtWidgets import QLabel, QMainWindow, QHeaderView, QMessageBox, QTableWidgetItem, QApplication, QButtonGroup
-from apscheduler.jobstores import redis
+from PyQt5.QtWidgets import QLabel, QMainWindow, QMessageBox, QApplication, QButtonGroup
+from json2html import json2html
 from qtpy import QtCore
-from pyquery import PyQuery as pq
 from lxml import etree
-
-
+from bs4 import BeautifulSoup as soup, Tag
 from ToolWindow import Ui_MainWindow
-####使用webkit
+
+
+TITLE = '爬虫助手，非常方便  QQ群692711347'
+
+def parse(tag, style='text'):
+    tags = []
+    def _parseAttrs(tag):
+        if tag.attrs:
+            for key, value in tag.attrs.items():
+                if key == 'class':
+                    exp = '''//{}[@{}='{}']'''.format(tag.name, key, ' '.join(value))
+                    return exp
+            return '//' + tag.name
+        else:
+            return '//'+tag.name
+    def _parseChild(tags, tag):
+        if tag:
+            flag = True
+            for item in tag.children:
+                if isinstance(item, Tag):
+                    if flag:
+                        tags.append(_parseAttrs(item))
+                        _parseChild(tags, item)
+                        flag=False
+    _parseChild(tags, tag)
+    tags.append('//')
+    tags.append(style)
+    return ''.join(tags)
 
 class Log():
     def info(self, *msg):
         print('【log info】', time.strftime("%Y-%m-%d %H:%M:%S"), msg)
     def error(self, *msg):
         print('【log error】', time.strftime("%Y-%m-%d %H:%M:%S"), msg)
-
-class RedisConfig():
-    def __init__(self, password=None, host='127.0.0.1', port=6379):
-        self.password = password
-        self.host = host
-        self.port = port
-class ConsoleSink():
-    def __init__(self, sep='\t\t'):
-        self.sep = sep
-
-class FileSink():
-    def __init__(self, filename, sep):
-        self.filename = filename
-        self.sep = sep
-
-class RedisUtil():
-    def __init__(self, config):
-        self.config = config
-        self.pool = redis.ConnectionPool(host=self.config.host, port=self.config.port, password=self.config.password)
-        self.r = redis.Redis(connection_pool=self.pool)
-
-    def isDuplicated(self, name, value):
-        '''
-        判断是否重复
-        :param name:
-        :param value:
-        :return:
-        '''
-        ret = self.r.sismember(name, value)
-        if ret==False:
-            self.r.sadd(name, value)
-        return ret
-class Sink():
-    def __init__(self, task):
-        self.task = task
-
-    def run(self):
-        if isinstance(self.task.sink, ConsoleSink):
-            print('***************************************************************************************')
-            print(self.task.sink.sep.join(self.task.titles))
-            for row in self.task.rows:
-                print(self.task.sink.sep.join(row))
-        elif isinstance(self.task.sink, FileSink):
-            filepath = os.path.join(self.task.sink.dirpath, self.task.sink.filename)
-            with open(filepath, 'a', encoding='utf-8') as f:
-                f.write(self.task.sink.sep.join(self.task.titles))
-                f.write('\r\n')
-                for row in self.task.rows:
-                    f.write(self.task.sink.sep.join(row))
-                    f.write('\r\n')
-class FileSource():
-    def __init__(self, dirpath, filename, sep='\t', index=0):
-        self.dirpath = dirpath
-        self.filename = filename
-        self.sep = sep
-        self.index = index
-
-class DataUtil():
-    @staticmethod
-    def formatDate(t, format):
-        '''
-        格式化日期时间
-        :param t:
-        :param format:
-        :return:
-        '''
-        format = format.replace('年', '%Y')
-        format = format.replace('月', '%m')
-        format = format.replace('日', '%d')
-        format = format.replace('时', '%H')
-        format = format.replace('分', '%M')
-        format = format.replace('秒', '%S')
-        timeStruct = time.strptime(t, format)
-        strTime = time.strftime("%Y-%m-%d %H:%M:%S", timeStruct)
-        return strTime
 
 class WebPage(QWebPage):
     def __init__(self, parent=None):
@@ -144,7 +102,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
         super(MainWin, self).__init__(parent)
         self.setupUi(self)
-        self.setWindowTitle('爬虫助手，非常方便  QQ群692711347')
+        self.setWindowTitle(TITLE)
         self.showMaximized()
 
         self.statusLabel = QLabel()
@@ -152,22 +110,30 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.statusBar().addWidget(self.statusLabel)
 
         self.browser = WebEngineView()
-        self._loadBrowser("https://stackoverflow.com/search?q=python++class+copy")
         self.verticalLayout_browser.addWidget(self.browser)
+
+        self.widget_quickmode.hide()
 
         self.browser.loadFinished.connect(self.on_browserLoadFinished)
         self.browser.loadProgress.connect(self.on_browserLoadProcess)
-
+        self.pushButton_load.clicked.connect(self.on_browser_loadUrl)
         self.pushButton_browserSelect.clicked.connect(self.on_browserSelect)
         self.pushButton_browserUnselect.clicked.connect(self.on_browserUnselect)
+
+        self.pushButton_extract_link.clicked.connect(self.on_extract_link)
+        self.pushButton_extract_text.clicked.connect(self.on_extract_text)
+        self.pushButton_extract_preview.clicked.connect(self.on_extract_preview)
+        self.pushButton_express_save_field.clicked.connect(self.on_express_save_field)
+
+        self.pushButton_browserContent.clicked.connect(self.on_browserContent)
         self.pushButton_browserSelectParent.clicked.connect(self.on_browserSelectParent)
-        self.pushButton_browserExtractText.clicked.connect(self.on_browserExtractText)
+
+        self.checkBox_quickmode.stateChanged.connect(self.on_quickmode_stateChanged)
 
         self.field_group =QButtonGroup()
-        self.field_group.addButton(self.radioButton_field_xpath)
-        self.field_group.addButton(self.radioButton_field_headtail)
-        self.current_item = None
-        self.pagermodel = PagerModel()
+
+        self.current_item = []
+
         self.itemModel = QStandardItemModel()
         self.itemModel.dataChanged.connect(self.on_fields_model_dataChanged)
         self.listView_fields.setModel(self.itemModel)
@@ -179,27 +145,56 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.pushButton_fieldSave.clicked.connect(self.on_fieldSave_clicked)
         self.pushButton_fieldPreview.clicked.connect(self.on_fieldPreview_clicked)
         self.pushButton_export.clicked.connect(self.on_export_clicked)
-        self.pushButton_pager_preview.clicked.connect(self.on_pager_preview_clicked)
 
         self.pushButton_exportTask.clicked.connect(self.on_exportTask_clicked)
 
 
 
     @pyqtSlot()
-    def loadUrl(self):
+    def on_browser_loadUrl(self):
         '''
-        加载新页面
+        加载页面
         :return:
         '''
-        self._loadBrowser(self.lineEdit_url.text())
+        if not self.lineEdit_url.text().strip():
+            QMessageBox.about(self, self.tr('提示'), self.tr('请输入网址'))
+            return
+        self._buildUrl(self.lineEdit_url.text())
+        if self.checkBox_quickmode.isChecked()==False:
+            self._buildUrl(self.lineEdit_url.text())
+            self.browser.load(QUrl(self._url))
+        else:
+            headers = {}
+            params = {}
+            if self.plainTextEdit_request_useragent.toPlainText():
+                headers['User-Agent']=self.plainTextEdit_request_useragent.toPlainText()
+            if self.plainTextEdit_request_cookie.toPlainText():
+                headers['Cookie'] = self.plainTextEdit_request_cookie.toPlainText()
+            if self.plainTextEdit_request_params.toPlainText():
+                for item in self.plainTextEdit_request_params.toPlainText().split('\n'):
+                    if item and item.strip():
+                        arr = item.split(':')
+                        params[arr[0]] = arr[1].strip()
+            response = requests.request(str(self.comboBox_request_method.currentText()).upper(), self._url, headers=headers, params=params)
+            content = ''
+            if self.comboBox_request_content.currentText()=='text':
+                content = response.text
 
-    def _loadBrowser(self, url):
+            cnt_dict = demjson.decode(content, encoding='utf8')
+            tempfilename = os.path.join(os.path.abspath(tempfile.gettempdir()), str(uuid.uuid4())+'.html')
+            with open(tempfilename, 'w', encoding='utf-8') as f:
+                f.write(json2html.convert(cnt_dict))
+            self.browser.settings().setAttribute(QWebSettings.LocalContentCanAccessRemoteUrls, True)
+            self.browser.settings().setDefaultTextEncoding('utf-8')
+            self.browser.load(QUrl.fromLocalFile(tempfilename))
+
+
+    def _buildUrl(self, url):
         self.lineEdit_url.setText(url)
         if url.startswith("http://") or url.startswith("https://"):
             self._url = url
         else:
             self._url = 'http://'+url
-        self.browser.load(QUrl(self._url))
 
     ##################################################################################################################
     @pyqtSlot(int)
@@ -211,7 +206,6 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.statusLabel.setText('页面加载完成')
 
     ##################################################################################################################
-
 
     @pyqtSlot()
     def on_browserSelect(self):
@@ -231,27 +225,89 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.browser.covering.hide()
         self.browser._initCover()
 
+    @pyqtSlot(int)
+    def on_quickmode_stateChanged(self, state):
+        if state:
+            self.widget_quickmode.show()
+        else:
+            self.widget_quickmode.hide()
+
     @pyqtSlot()
-    def on_browserExtractText(self):
+    def on_extract_link(self):
+        if self.browser.current_block==None:
+            QMessageBox.about(self, self.tr('提示'), self.tr('请先选中元素'))
+            return
+
+        data = self.browser.current_block.toOuterXml()
+        pretty = soup(data, 'html5lib').body
+        self.lineEdit_express.setText(parse(pretty, '@href'))
+
+        values = [item.strip() for item in etree.HTML(self.browser.page().currentFrame().toHtml()).xpath(self.lineEdit_express.text())]
+        self.plainTextEdit_field_value.setPlainText('\r\n\r\n'.join(values))
+        self.statusLabel.setText('数据{}条'.format(len(values)))
+
+    @pyqtSlot()
+    def on_extract_text(self):
+        if self.browser.current_block==None:
+            QMessageBox.about(self, self.tr('提示'), self.tr('请先选中元素'))
+            return
+        data = self.browser.current_block.toOuterXml()
+        pretty = soup(data, 'html5lib').body
+        self.lineEdit_express.setText(parse(pretty, 'text()'))
+
+        values = [item.strip() for item in etree.HTML(self.browser.page().currentFrame().toHtml()).xpath(self.lineEdit_express.text())]
+        self.plainTextEdit_field_value.setPlainText('\r\n\r\n'.join(values))
+        self.statusLabel.setText('数据{}条'.format(len(values)))
+
+    @pyqtSlot()
+    def on_extract_preview(self):
         '''
-        提取文本
+        表达式地方，预览数据
+        :return:
+        '''
+        if self.lineEdit_express.text()==None:
+            QMessageBox.about(self, self.tr('提示'), self.tr('请输入表达式'))
+            return
+        try:
+            values = [item.strip() for item in etree.HTML(self.browser.page().currentFrame().toHtml()).xpath(self.lineEdit_express.text())]
+            self.plainTextEdit_field_value.setPlainText('\r\n\r\n'.join(values))
+            self.statusLabel.setText('数据{}条'.format(len(values)))
+        except Exception as e:
+            QMessageBox.about(self, self.tr('提示'), str(e))
+
+    @pyqtSlot()
+    def on_express_save_field(self):
+        '''
+        表达式地方，保存字段
+        :return:
+        '''
+        fieldModel = FieldModel('字段')
+        fieldModel.style = 'xpath'
+        fieldModel.express = self.lineEdit_express.text()
+        fieldModel.head = ''
+        fieldModel.tail = ''
+        fieldModel.headinclude = True
+        fieldModel.tailinclude = False
+        fieldModel.code = ''
+        item = QStandardItem('字段')
+        item.setData(fieldModel)
+        self.itemModel.appendRow(item)
+
+    @pyqtSlot()
+    def on_browserContent(self):
+        '''
+        网页内容
         :return:
         '''
         if self.browser.current_block==None:
             QMessageBox.about(self, self.tr('提示'), self.tr('请先选中元素'))
             return
         self.plainTextEdit_html.setPlainText(self.browser.current_block.toOuterXml())
-        data = self.browser.current_block.toOuterXml()
-        from bs4 import BeautifulSoup as soup
-
-        pretty = soup(data, 'html5lib').prettify()
-        pretty = pretty.replace('''<html>
- <head>
- </head>
- <body>''', '')
-        pretty = pretty.replace(''' </body>
-</html>''','')
-        self.plainTextEdit_html.setPlainText(pretty)
+        # data = self.browser.current_block.toOuterXml()
+        #
+        #
+        # pretty = soup(data, 'html5lib').body.contents[0]
+        # self.plainTextEdit_html.setPlainText(str(pretty))
 
 
     def on_fields_model_dataChanged(self):
@@ -269,16 +325,9 @@ class MainWin(QMainWindow, Ui_MainWindow):
         '''
         self.current_item = self.itemModel.itemFromIndex(modelIndex)
         fieldModel = self.current_item.data()
-        if fieldModel.style=='xpath':
-            self.radioButton_field_xpath.setChecked(True)
-        if fieldModel.style=='headtail':
-            self.radioButton_field_headtail.setChecked(True)
+
         self.lineEdit_field_express.setText(fieldModel.express)
-        self.checkBox_field_headinclude.setChecked(fieldModel.headinclude)
-        self.checkBox_field_tailinclude.setChecked(fieldModel.tailinclude)
-        self.textEdit_field_head.setText(fieldModel.head)
-        self.textEdit_field_tail.setText(fieldModel.tail)
-        self.lineEdit_field_datepattern.setText(fieldModel.datepattern)
+        self.plainTextEdit_code.setPlainText(fieldModel.code)
 
     def on_fieldAdd_clicked(self):
         item = QStandardItem('字段')
@@ -307,23 +356,16 @@ class MainWin(QMainWindow, Ui_MainWindow):
         保存
         :return:
         '''
+        if self.itemModel.rowCount()==0:
+            QMessageBox.about(self, self.tr('提示'), self.tr('请先添加一个字段'))
+            return
         if self.current_item==None:
             self.current_item = self.itemModel.item(0,0)
         fieldModel = self.current_item.data()
-        if self.radioButton_field_xpath.isChecked():
-            fieldModel.style = 'xpath'
-        if self.radioButton_field_headtail.isChecked():
-            fieldModel.style = 'headtail'
+        fieldModel.style = 'xpath'
         fieldModel.express = self.lineEdit_field_express.text()
-        fieldModel.head = self.textEdit_field_head.toPlainText()
-        fieldModel.tail = self.textEdit_field_tail.toPlainText()
-        fieldModel.headinclude = self.checkBox_field_headinclude.isChecked()
-        fieldModel.tailinclude = self.checkBox_field_tailinclude.isChecked()
-        fieldModel.datepattern = self.lineEdit_field_datepattern.text()
+        fieldModel.code = self.plainTextEdit_code.toPlainText()
         self.current_item.setData(fieldModel)
-
-        if self.checkBox_pager_is.isChecked():
-            self.pagermodel.express = self.lineEdit_pager_express.text()
 
     def on_fieldPreview_clicked(self):
         '''
@@ -337,31 +379,14 @@ class MainWin(QMainWindow, Ui_MainWindow):
             for i in range(self.itemModel.rowCount()):
                 fieldModel = self.itemModel.item(i, 0).data()
                 print(fieldModel.name, fieldModel.style)
-                if fieldModel.style=='xpath':
-                    fieldModel.values = [item.strip() for item in root.xpath(fieldModel.express)]
-                elif fieldModel.style=='headtail':
-                    heads = re.findall(fieldModel.head, content)
-                    if len(heads)!=1:
-                        raise Exception('头部解析不合适', heads)
-                    tails = re.findall(fieldModel.tail, content)
-                    if len(tails)!=1:
-                        raise Exception('尾部解析不合适', heads)
-
-                    head_pos = content.find(heads[0])
-                    head_pos =  head_pos if fieldModel.headinclude else head_pos+len(heads[0])
-                    tail_pos = content.find(tails[0])
-                    tail_pos = tail_pos + len(tails[0]) if fieldModel.tailinclude else tail_pos
-                    fieldModel.values = [content[head_pos:tail_pos]]
-                else:
-                    # self.task.log.error('解析类型错误', fieldModel.style)
-                    raise Exception('解析类型错误')
-
+                fieldModel.values = [item.strip() for item in root.xpath(fieldModel.express)]
                 ##################处理字段信息
                 resu = []
                 for value in fieldModel.values:
                     value = str(value).strip()
-                    if fieldModel.datepattern:
-                        resu.append(DataUtil.formatDate(value, fieldModel.datepattern))
+                    if fieldModel.code:
+                        print(fieldModel.code)
+                        resu.append(execjs.compile(fieldModel.code).call('parse', value))
                     else:
                         resu.append(value)
                 fieldModel.values = resu
@@ -405,19 +430,19 @@ class MainWin(QMainWindow, Ui_MainWindow):
         wb.save(os.path.join(os.path.join(os.path.expanduser('~'), "Desktop"), '爬虫数据.xls'))
         QMessageBox.about(self, self.tr('提示'), self.tr('数据已经保存到桌面'))
 
-    def on_pager_preview_clicked(self):
-        if self.checkBox_pager_is.isChecked():
-            root = etree.HTML(self.browser.page().currentFrame().toHtml())
-
-            try:
-                model = QStandardItemModel()
-                for index,page in enumerate(root.xpath(self.lineEdit_pager_express.text())):
-                    model.setItem(index, 0, QStandardItem(page))
-                model.setHorizontalHeaderLabels([''])
-                self.tableView_alldata.setModel(model)
-                self.statusLabel.setText('正确显示数据')
-            except Exception as e:
-                QMessageBox.about(self, self.tr('提示'), self.tr(str(e)))
+    # def on_pager_preview_clicked(self):
+    #     if self.checkBox_pager_is.isChecked():
+    #         root = etree.HTML(self.browser.page().currentFrame().toHtml())
+    #
+    #         try:
+    #             model = QStandardItemModel()
+    #             for index,page in enumerate(root.xpath(self.lineEdit_pager_express.text())):
+    #                 model.setItem(index, 0, QStandardItem(page))
+    #             model.setHorizontalHeaderLabels([''])
+    #             self.tableView_alldata.setModel(model)
+    #             self.statusLabel.setText('正确显示数据')
+    #         except Exception as e:
+    #             QMessageBox.about(self, self.tr('提示'), self.tr(str(e)))
 
     def on_exportTask_clicked(self):
         if self.lineEdit_taskName.text()==None:
@@ -429,7 +454,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
             task.source = self.plainTextEdit_urls.toPlainText().split('\n')
             for i in range(self.itemModel.rowCount()):
                 task.fields.append(self.itemModel.item(i, 0).data().__dict__)
-            task.pager = self.pagermodel.__dict__
+
             task.deduplication = self.checkBox_pager_is.isChecked()
 
             if self.checkBox_savefile_is.isChecked():
@@ -455,22 +480,17 @@ class Task():
 
 
 class FieldModel(object):
-    def __init__(self, name, style='xpath', express='', headinclude=True, head='', tailinclude=False, tail='', datepattern=''):
+    def __init__(self, name, style='xpath', express='', code=''):
         self.name = name
         self.style = style
         self.express = express
-        self.headinclude = headinclude
-        self.head = head
-        self.tailinclude = tailinclude
-        self.tail = tail
-        self.datepattern = datepattern
+        self.code = code
         self.values = []
 
-
-class PagerModel():
-    def __init__(self, express=None):
-        self.express = express
-
+class FileSink():
+    def __init__(self, filename, sep):
+        self.filename = filename
+        self.sep = sep
 
 
 if __name__ == '__main__':
