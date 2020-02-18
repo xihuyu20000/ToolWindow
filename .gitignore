@@ -1,2 +1,9 @@
 /.idea
 /build
+/ToolWindow_main.spec
+/util.py
+/点名.py
+/点名.ui
+/点名_main.py
+/点名_main.spec
+/test01.py

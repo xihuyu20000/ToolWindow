@@ -3,18 +3,12 @@ import os
 import copy
 import time
 import json
-import tempfile,uuid
 
-import demjson
-import requests
-
-import execjs
+# import execjs
 from PyQt5.QtCore import QUrl, pyqtSlot, QSize, QPoint
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWebKit import QWebSettings
 from PyQt5.QtWebKitWidgets import QWebPage, QWebView
-from PyQt5.QtWidgets import QLabel, QMainWindow, QMessageBox, QApplication, QButtonGroup
-from json2html import json2html
+from PyQt5.QtWidgets import QLabel, QMainWindow, QMessageBox, QApplication, QButtonGroup, QFileDialog
 from qtpy import QtCore
 from lxml import etree
 from bs4 import BeautifulSoup as soup, Tag
@@ -79,7 +73,7 @@ class WebEngineView(QWebView):
         scrollPos = self.page().mainFrame().scrollPosition()
         self.covering.resize(QSize(rect.width(), rect.height()))
         self.covering.move(QPoint(rect.x()-scrollPos.x(), rect.y()-scrollPos.y()))
-        self.covering.setStyleSheet("border-width: 4px;border-style: solid;border-color: rgb(255, 170, 0);")
+        self.covering.setStyleSheet("border-width: 2px;border-style: solid;border-color: rgb(255, 170, 0);")
         self.covering.show()
 
     # 重写createwindow()
@@ -93,10 +87,14 @@ class WebEngineView(QWebView):
         return new_webview
 
     def mousePressEvent(self, event):
+
         if self.SELECT_FLAG and event.buttons() == QtCore.Qt.LeftButton:
             self.covering.hide()
             self.current_block = self.page().currentFrame().hitTestContent(event.pos()).element()
             self._initCover()
+
+    def leaveEvent(self, event):  # 鼠标移出时调用
+        print('鼠标移出窗口了')
 
 class MainWin(QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
@@ -110,9 +108,10 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.statusBar().addWidget(self.statusLabel)
 
         self.browser = WebEngineView()
+        self.browser.page().setLinkDelegationPolicy(QWebPage.DelegateAllLinks)
         self.verticalLayout_browser.addWidget(self.browser)
 
-        self.widget_quickmode.hide()
+        self.widget_autopagermode.hide()
 
         self.browser.loadFinished.connect(self.on_browserLoadFinished)
         self.browser.loadProgress.connect(self.on_browserLoadProcess)
@@ -128,11 +127,9 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.pushButton_browserContent.clicked.connect(self.on_browserContent)
         self.pushButton_browserSelectParent.clicked.connect(self.on_browserSelectParent)
 
-        self.checkBox_quickmode.stateChanged.connect(self.on_quickmode_stateChanged)
-
+        self.checkBox_autopager.stateChanged.connect(self.on_checkBox_autopager_stateChanged)
+        self.pushButton_pager_test.clicked.connect(self.on_pushButton_pager_test_clicked)
         self.field_group =QButtonGroup()
-
-        self.current_item = []
 
         self.itemModel = QStandardItemModel()
         self.itemModel.dataChanged.connect(self.on_fields_model_dataChanged)
@@ -146,8 +143,14 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.pushButton_fieldPreview.clicked.connect(self.on_fieldPreview_clicked)
         self.pushButton_export.clicked.connect(self.on_export_clicked)
 
+        self.groupBox_saveFile.hide()
+        self.groupBox_savemysql.hide()
+        self.checkBox_savefile_is.stateChanged.connect(self.on_checkBox_savefile_is_stateChanged)
+        self.checkBox_savemysql_is.stateChanged.connect(self.on_checkBox_savemysql_is_stateChanged)
+        self.pushButton_saveFile_chooseName.clicked.connect(self.on_saveFile_chooseName)
         self.pushButton_exportTask.clicked.connect(self.on_exportTask_clicked)
 
+        self.browser.load(QUrl('http://www.cnblogs.com'))
 
 
     @pyqtSlot()
@@ -160,33 +163,32 @@ class MainWin(QMainWindow, Ui_MainWindow):
             QMessageBox.about(self, self.tr('提示'), self.tr('请输入网址'))
             return
         self._buildUrl(self.lineEdit_url.text())
-        if self.checkBox_quickmode.isChecked()==False:
-            self._buildUrl(self.lineEdit_url.text())
-            self.browser.load(QUrl(self._url))
-        else:
-            headers = {}
-            params = {}
-            if self.plainTextEdit_request_useragent.toPlainText():
-                headers['User-Agent']=self.plainTextEdit_request_useragent.toPlainText()
-            if self.plainTextEdit_request_cookie.toPlainText():
-                headers['Cookie'] = self.plainTextEdit_request_cookie.toPlainText()
-            if self.plainTextEdit_request_params.toPlainText():
-                for item in self.plainTextEdit_request_params.toPlainText().split('\n'):
-                    if item and item.strip():
-                        arr = item.split(':')
-                        params[arr[0]] = arr[1].strip()
-            response = requests.request(str(self.comboBox_request_method.currentText()).upper(), self._url, headers=headers, params=params)
-            content = ''
-            if self.comboBox_request_content.currentText()=='text':
-                content = response.text
+        self.browser.load(QUrl(self._url))
 
-            cnt_dict = demjson.decode(content, encoding='utf8')
-            tempfilename = os.path.join(os.path.abspath(tempfile.gettempdir()), str(uuid.uuid4())+'.html')
-            with open(tempfilename, 'w', encoding='utf-8') as f:
-                f.write(json2html.convert(cnt_dict))
-            self.browser.settings().setAttribute(QWebSettings.LocalContentCanAccessRemoteUrls, True)
-            self.browser.settings().setDefaultTextEncoding('utf-8')
-            self.browser.load(QUrl.fromLocalFile(tempfilename))
+        # else:
+        #     headers = {}
+        #     params = {}
+        #     if self.plainTextEdit_request_useragent.toPlainText():
+        #         headers['User-Agent']=self.plainTextEdit_request_useragent.toPlainText()
+        #     if self.plainTextEdit_request_cookie.toPlainText():
+        #         headers['Cookie'] = self.plainTextEdit_request_cookie.toPlainText()
+        #     if self.plainTextEdit_request_params.toPlainText():
+        #         for item in self.plainTextEdit_request_params.toPlainText().split('\n'):
+        #             if item and item.strip():
+        #                 arr = item.split(':')
+        #                 params[arr[0]] = arr[1].strip()
+        #     response = requests.request(str(self.comboBox_request_method.currentText()).upper(), self._url, headers=headers, params=params)
+        #     content = ''
+        #     if self.comboBox_request_content.currentText()=='text':
+        #         content = response.text
+        #
+        #     cnt_dict = demjson.decode(content, encoding='utf8')
+        #     tempfilename = os.path.join(os.path.abspath(tempfile.gettempdir()), str(uuid.uuid4())+'.html')
+        #     with open(tempfilename, 'w', encoding='utf-8') as f:
+        #         f.write(json2html.convert(cnt_dict))
+        #     self.browser.settings().setAttribute(QWebSettings.LocalContentCanAccessRemoteUrls, True)
+        #     self.browser.settings().setDefaultTextEncoding('utf-8')
+        #     self.browser.load(QUrl.fromLocalFile(tempfilename))
 
 
     def _buildUrl(self, url):
@@ -195,6 +197,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
             self._url = url
         else:
             self._url = 'http://'+url
+        self.plainTextEdit_urls.setPlainText(self._url)
 
     ##################################################################################################################
     @pyqtSlot(int)
@@ -204,6 +207,19 @@ class MainWin(QMainWindow, Ui_MainWindow):
     @pyqtSlot()
     def on_browserLoadFinished(self):
         self.statusLabel.setText('页面加载完成')
+
+        # self._auto_click("//a[starts-with(text(),'Next')]")
+
+
+    def _auto_click(self, xpath):
+        try:
+            self.browser.page().mainFrame().evaluateJavaScript('''
+                var evaluator = new XPathEvaluator();
+                var result = evaluator.evaluate("{}", document.documentElement, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                result.singleNodeValue.click();
+            '''.format(xpath))
+        except Exception as e:
+            QMessageBox.about(self, self.tr('提示'), str(e))
 
     ##################################################################################################################
 
@@ -225,12 +241,23 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.browser.covering.hide()
         self.browser._initCover()
 
+        self.on_browserContent()
+
     @pyqtSlot(int)
-    def on_quickmode_stateChanged(self, state):
+    def on_checkBox_autopager_stateChanged(self, state):
         if state:
-            self.widget_quickmode.show()
+            self.widget_autopagermode.show()
         else:
-            self.widget_quickmode.hide()
+            self.widget_autopagermode.hide()
+
+    @pyqtSlot()
+    def on_pushButton_pager_test_clicked(self):
+        xpath = self.lineEdit_pager_xpath.text()
+        if xpath==None or xpath.strip()=='':
+            QMessageBox.about(self, self.tr('提示'), self.tr('请输入翻页表达式'))
+            return
+
+        self._auto_click(xpath)
 
     @pyqtSlot()
     def on_extract_link(self):
@@ -332,6 +359,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
     def on_fieldAdd_clicked(self):
         item = QStandardItem('字段')
         item.setData(FieldModel('字段'))
+        self.current_item = item
         self.itemModel.appendRow(item)
 
     def on_fieldRemove_clicked(self):
@@ -369,11 +397,13 @@ class MainWin(QMainWindow, Ui_MainWindow):
 
     def on_fieldPreview_clicked(self):
         '''
-        显示数据
+        预览数据
         :return:
         '''
         content = self.browser.page().currentFrame().toHtml()
         root = etree.HTML(content)
+
+        self.on_fieldSave_clicked()
 
         try:
             for i in range(self.itemModel.rowCount()):
@@ -386,7 +416,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
                     value = str(value).strip()
                     if fieldModel.code:
                         print(fieldModel.code)
-                        resu.append(execjs.compile(fieldModel.code).call('parse', value))
+                        # resu.append(execjs.compile(fieldModel.code).call('parse', value))
                     else:
                         resu.append(value)
                 fieldModel.values = resu
@@ -413,6 +443,8 @@ class MainWin(QMainWindow, Ui_MainWindow):
         导出数据
         :return:
         '''
+        self.on_fieldSave_clicked()
+
         import xlwt
         wb = xlwt.Workbook(encoding='utf8')  # 创建实例，并且规定编码
         ws = wb.add_sheet('第一个')  # 设置工作表名称
@@ -444,6 +476,28 @@ class MainWin(QMainWindow, Ui_MainWindow):
     #         except Exception as e:
     #             QMessageBox.about(self, self.tr('提示'), self.tr(str(e)))
 
+    @pyqtSlot(int)
+    def on_checkBox_savefile_is_stateChanged(self, state):
+        if state:
+            self.groupBox_saveFile.show()
+        else:
+            self.groupBox_saveFile.hide()
+
+    @pyqtSlot(int)
+    def on_checkBox_savemysql_is_stateChanged(self, state):
+        if state:
+            self.groupBox_savemysql.show()
+        else:
+            self.groupBox_savemysql.hide()
+
+    def on_saveFile_chooseName(self):
+        dir_choose = QFileDialog.getExistingDirectory(self, "选取文件夹", os.path.join(os.path.expanduser('~'), "Desktop"))
+        if dir_choose == "":
+            QMessageBox.about(self, self.tr('提示'), self.tr('请选择一个文件夹'))
+            return
+
+        self.lineEdit_savefile_filename.setText(dir_choose)
+
     def on_exportTask_clicked(self):
         if self.lineEdit_taskName.text()==None:
             QMessageBox.about(self, self.tr('提示'), self.tr('请输入任务名称'))
@@ -454,8 +508,6 @@ class MainWin(QMainWindow, Ui_MainWindow):
             task.source = self.plainTextEdit_urls.toPlainText().split('\n')
             for i in range(self.itemModel.rowCount()):
                 task.fields.append(self.itemModel.item(i, 0).data().__dict__)
-
-            task.deduplication = self.checkBox_pager_is.isChecked()
 
             if self.checkBox_savefile_is.isChecked():
                 task.sinks.append(FileSink(self.lineEdit_savefile_filename.text(), self.lineEdit_savefile_sep.text()).__dict__)
