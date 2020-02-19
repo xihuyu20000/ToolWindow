@@ -3,14 +3,15 @@ import os
 import copy
 import time
 import json
-
-# import execjs
+import xlwt
+import execjs
 from PyQt5.QtCore import QUrl, pyqtSlot, QSize, QPoint
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWebKitWidgets import QWebPage, QWebView
 from PyQt5.QtWidgets import QLabel, QMainWindow, QMessageBox, QApplication, QButtonGroup, QFileDialog
 from qtpy import QtCore
 from lxml import etree
+
 from bs4 import BeautifulSoup as soup, Tag
 from ToolWindow import Ui_MainWindow
 
@@ -73,7 +74,7 @@ class WebEngineView(QWebView):
         scrollPos = self.page().mainFrame().scrollPosition()
         self.covering.resize(QSize(rect.width(), rect.height()))
         self.covering.move(QPoint(rect.x()-scrollPos.x(), rect.y()-scrollPos.y()))
-        self.covering.setStyleSheet("border-width: 2px;border-style: solid;border-color: rgb(255, 170, 0);")
+        self.covering.setStyleSheet("border-width: 2px;border-style: dashed;border-color: rgb(255, 170, 0);")
         self.covering.show()
 
     # 重写createwindow()
@@ -92,9 +93,6 @@ class WebEngineView(QWebView):
             self.covering.hide()
             self.current_block = self.page().currentFrame().hitTestContent(event.pos()).element()
             self._initCover()
-
-    def leaveEvent(self, event):  # 鼠标移出时调用
-        print('鼠标移出窗口了')
 
 class MainWin(QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
@@ -416,11 +414,11 @@ class MainWin(QMainWindow, Ui_MainWindow):
                     value = str(value).strip()
                     if fieldModel.code:
                         print(fieldModel.code)
-                        # resu.append(execjs.compile(fieldModel.code).call('parse', value))
+                        resu.append(execjs.compile(fieldModel.code).call('parse', value))
                     else:
                         resu.append(value)
                 fieldModel.values = resu
-                # self.task.log.info('解析字段', fieldModel.name, fieldModel.result)
+                self.task.log.info('解析字段', fieldModel.name, fieldModel.result)
 
                 self.itemModel.item(i, 0).setData(fieldModel)
 
@@ -445,7 +443,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
         '''
         self.on_fieldSave_clicked()
 
-        import xlwt
+
         wb = xlwt.Workbook(encoding='utf8')  # 创建实例，并且规定编码
         ws = wb.add_sheet('第一个')  # 设置工作表名称
 

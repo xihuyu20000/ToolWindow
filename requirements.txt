@@ -1,0 +1,8 @@
+pip=9.0.1
+PyQt5=5.14.1
+pyqt5-tools=5.13.0.1.5
+PyQtWebKit=5.13.1
+cx-Freeze=6.1
+lxml=4.5.0
+bs4=0.0.1
+PyExecJS=1.5.1
