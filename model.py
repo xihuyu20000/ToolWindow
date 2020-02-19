@@ -1,9 +1,28 @@
+'''
+模型类
+'''
 import time
 
 class Log():
-    def info(self, *msg):
+    '''
+    日志信息
+    '''
+    @staticmethod
+    def info(*msg):
+        '''
+        信息
+        :param msg:
+        :return:
+        '''
         print('【log info】', time.strftime("%Y-%m-%d %H:%M:%S"), msg)
-    def error(self, *msg):
+
+    @staticmethod
+    def error(*msg):
+        '''
+        错误
+        :param msg:
+        :return:
+        '''
         print('【log error】', time.strftime("%Y-%m-%d %H:%M:%S"), msg)
 
 class FieldModel():
@@ -26,10 +45,13 @@ class FileSink():
         self.sep = sep
 
 class Task():
-    def __init__(self, name, source=None, sinks=[], fields=[], pager=None, deduplication=False):
+    '''
+    任务模型
+    '''
+    def __init__(self, name, source=None, sinks=None, fields=None, pager=None, allow_duplica=False):
         self.name = name
         self.source = source
-        self.sinks = sinks
-        self.fields = fields
+        self.sinks = [] if sinks is None else sinks
+        self.fields = [] if fields is None else fields
         self.pager = pager
-        self.deduplication = deduplication
+        self.allow_duplica = allow_duplica

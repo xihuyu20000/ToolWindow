@@ -390,6 +390,31 @@
                 </spacer>
                </item>
                <item>
+                <widget class="QLabel" name="label_2">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>100</width>
+                   <height>0</height>
+                  </size>
+                 </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>100</width>
+                   <height>16777215</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string/>
+                 </property>
+                </widget>
+               </item>
+               <item>
                 <widget class="QPushButton" name="pushButton_browserSelect">
                  <property name="maximumSize">
                   <size>
@@ -416,13 +441,7 @@
                 </widget>
                </item>
                <item>
-                <widget class="QLabel" name="label_2">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
+                <widget class="QPushButton" name="pushButton_browserSelectParent">
                  <property name="minimumSize">
                   <size>
                    <width>100</width>
@@ -436,7 +455,7 @@
                   </size>
                  </property>
                  <property name="text">
-                  <string/>
+                  <string>选择上一级</string>
                  </property>
                 </widget>
                </item>
@@ -1158,7 +1177,7 @@ p, li { white-space: pre-wrap; }
        </item>
        <item>
         <widget class="QWidget" name="widget_right" native="true">
-         <layout class="QVBoxLayout" name="verticalLayout_8" stretch="5,5">
+         <layout class="QVBoxLayout" name="verticalLayout_8" stretch="5,0,5">
           <property name="leftMargin">
            <number>0</number>
           </property>
@@ -1174,11 +1193,35 @@ p, li { white-space: pre-wrap; }
           <item>
            <widget class="QWidget" name="widget_16" native="true">
             <layout class="QHBoxLayout" name="horizontalLayout_2">
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
              <item>
               <widget class="QWidget" name="widget" native="true">
                <layout class="QVBoxLayout" name="verticalLayout_10">
                 <property name="spacing">
-                 <number>20</number>
+                 <number>0</number>
+                </property>
+                <property name="leftMargin">
+                 <number>0</number>
+                </property>
+                <property name="topMargin">
+                 <number>0</number>
+                </property>
+                <property name="rightMargin">
+                 <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>0</number>
                 </property>
                 <item>
                  <widget class="QWidget" name="widget_19" native="true">
@@ -1186,6 +1229,18 @@ p, li { white-space: pre-wrap; }
                    <string notr="true"/>
                   </property>
                   <layout class="QHBoxLayout" name="horizontalLayout_14">
+                   <property name="leftMargin">
+                    <number>0</number>
+                   </property>
+                   <property name="topMargin">
+                    <number>0</number>
+                   </property>
+                   <property name="rightMargin">
+                    <number>0</number>
+                   </property>
+                   <property name="bottomMargin">
+                    <number>0</number>
+                   </property>
                    <item>
                     <widget class="QLabel" name="label">
                      <property name="font">
@@ -1197,38 +1252,6 @@ p, li { white-space: pre-wrap; }
                      </property>
                      <property name="text">
                       <string>页面结构&gt;&gt;</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item>
-                    <widget class="QPushButton" name="pushButton_browserSelectParent">
-                     <property name="minimumSize">
-                      <size>
-                       <width>100</width>
-                       <height>0</height>
-                      </size>
-                     </property>
-                     <property name="maximumSize">
-                      <size>
-                       <width>100</width>
-                       <height>16777215</height>
-                      </size>
-                     </property>
-                     <property name="text">
-                      <string>选择上一级</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item>
-                    <widget class="QPushButton" name="pushButton_browserContent">
-                     <property name="maximumSize">
-                      <size>
-                       <width>100</width>
-                       <height>16777215</height>
-                      </size>
-                     </property>
-                     <property name="text">
-                      <string>页面内容</string>
                      </property>
                     </widget>
                    </item>
@@ -1258,45 +1281,54 @@ p, li { white-space: pre-wrap; }
            </widget>
           </item>
           <item>
+           <widget class="QWidget" name="widget_14" native="true">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>20</height>
+             </size>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QWidget" name="widget_17" native="true">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>100</height>
+             </size>
+            </property>
             <layout class="QVBoxLayout" name="verticalLayout_13">
-             <item>
-              <widget class="QWidget" name="widget_18" native="true">
-               <layout class="QHBoxLayout" name="horizontalLayout_11"/>
-              </widget>
-             </item>
-             <item>
-              <widget class="QWidget" name="widget_20" native="true">
-               <property name="styleSheet">
-                <string notr="true"/>
-               </property>
-               <layout class="QHBoxLayout" name="horizontalLayout_18">
-                <item>
-                 <widget class="QLabel" name="label_12">
-                  <property name="font">
-                   <font>
-                    <pointsize>12</pointsize>
-                    <weight>75</weight>
-                    <bold>true</bold>
-                   </font>
-                  </property>
-                  <property name="text">
-                   <string>表达式&gt;&gt;</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="lineEdit_express"/>
-                </item>
-               </layout>
-              </widget>
-             </item>
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
              <item>
               <widget class="QWidget" name="widget_7" native="true">
                <property name="styleSheet">
                 <string notr="true"/>
                </property>
                <layout class="QHBoxLayout" name="horizontalLayout_17">
+                <property name="leftMargin">
+                 <number>0</number>
+                </property>
+                <property name="topMargin">
+                 <number>0</number>
+                </property>
+                <property name="rightMargin">
+                 <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>0</number>
+                </property>
                 <item>
                  <widget class="QLabel" name="label_5">
                   <property name="font">
@@ -1351,19 +1383,6 @@ p, li { white-space: pre-wrap; }
                  </spacer>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="pushButton_extract_preview">
-                  <property name="maximumSize">
-                   <size>
-                    <width>70</width>
-                    <height>16777215</height>
-                   </size>
-                  </property>
-                  <property name="text">
-                   <string>浏览数据</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
                  <widget class="QPushButton" name="pushButton_express_save_field">
                   <property name="maximumSize">
                    <size>
@@ -1373,6 +1392,82 @@ p, li { white-space: pre-wrap; }
                   </property>
                   <property name="text">
                    <string>保存字段</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <widget class="QWidget" name="widget_18" native="true">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>20</height>
+                </size>
+               </property>
+               <layout class="QHBoxLayout" name="horizontalLayout_11">
+                <property name="leftMargin">
+                 <number>0</number>
+                </property>
+                <property name="topMargin">
+                 <number>0</number>
+                </property>
+                <property name="rightMargin">
+                 <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>0</number>
+                </property>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <widget class="QWidget" name="widget_20" native="true">
+               <property name="styleSheet">
+                <string notr="true"/>
+               </property>
+               <layout class="QHBoxLayout" name="horizontalLayout_18">
+                <property name="leftMargin">
+                 <number>0</number>
+                </property>
+                <property name="topMargin">
+                 <number>0</number>
+                </property>
+                <property name="rightMargin">
+                 <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>0</number>
+                </property>
+                <item>
+                 <widget class="QLabel" name="label_12">
+                  <property name="font">
+                   <font>
+                    <family>Adobe 楷体 Std R</family>
+                    <pointsize>12</pointsize>
+                    <weight>75</weight>
+                    <bold>true</bold>
+                   </font>
+                  </property>
+                  <property name="text">
+                   <string>表达式</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLineEdit" name="lineEdit_express"/>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="pushButton_extract_preview">
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string>浏览数据</string>
                   </property>
                  </widget>
                 </item>

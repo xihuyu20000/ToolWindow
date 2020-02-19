@@ -1,24 +1,27 @@
+'''
+主模块
+'''
 import sys
 import os
 import copy
 import json
 import xlwt
 
-from PyQt5.QtCore import QUrl, pyqtSlot, QSize, QPoint
+from PyQt5.QtCore import QUrl, pyqtSlot, QSize, QPoint, pyqtSignal
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWebKitWidgets import QWebPage, QWebView
-from PyQt5.QtWidgets import QMainWindow, QApplication
+from PyQt5.QtWidgets import QMainWindow, QApplication, QMessageBox
 from PyQt5.QtWidgets import QLabel, QButtonGroup, QFileDialog
 
 from qtpy import QtCore
 from lxml import etree
 
-from bs4 import BeautifulSoup as soup
+
 import execjs
 from ToolWindow import Ui_MainWindow
 from model import FileSink, Task, FieldModel
 
-from utils import show_dialog, parse
+from utils import Utils
 
 TITLE = '爬虫助手，非常方便  QQ群692711347'
 
@@ -34,8 +37,9 @@ class WebPage(QWebPage):
 class WebEngineView(QWebView):
     windowList = []
 
-    def __init__(self, parent=None):
-        super(WebEngineView, self).__init__(parent)
+    def __init__(self, choose_block_signal=None):
+        super(WebEngineView, self).__init__()
+        self._choose_block_signal = choose_block_signal
         self.SELECT_FLAG = True
         self.covering = QLabel(self)
         self.current_block = None
@@ -68,14 +72,18 @@ class WebEngineView(QWebView):
             self.covering.hide()
             self.current_block = self.page().currentFrame().hitTestContent(event.pos()).element()
             self._initCover()
+            self._choose_block_signal.emit()
 
 class MainWin(QMainWindow, Ui_MainWindow):
+    _choose_block_signal = pyqtSignal()
     def __init__(self, parent=None):
         super(MainWin, self).__init__(parent)
         self.setupUi(self)
         self.setWindowTitle(TITLE)
         self.showMaximized()
 
+
+        self._choose_block_signal.connect(self.on_browserContent)
         self.current_item = None
         self._url = ''
 
@@ -83,7 +91,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.statusLabel.setMaximumWidth(500)
         self.statusBar().addWidget(self.statusLabel)
 
-        self.browser = WebEngineView()
+        self.browser = WebEngineView(self._choose_block_signal)
         self.browser.page().setLinkDelegationPolicy(QWebPage.DelegateAllLinks)
         self.verticalLayout_browser.addWidget(self.browser)
 
@@ -97,10 +105,10 @@ class MainWin(QMainWindow, Ui_MainWindow):
 
         self.pushButton_extract_link.clicked.connect(self.on_extract_link)
         self.pushButton_extract_text.clicked.connect(self.on_extract_text)
-        self.pushButton_extract_preview.clicked.connect(self.on_extract_preview)
-        self.pushButton_express_save_field.clicked.connect(self.on_express_save_field)
 
-        self.pushButton_browserContent.clicked.connect(self.on_browserContent)
+        self.pushButton_extract_preview.clicked.connect(self.on_extract_preview)
+
+        self.pushButton_express_save_field.clicked.connect(self.on_express_save_field)
         self.pushButton_browserSelectParent.clicked.connect(self.on_browserSelectParent)
 
         self.checkBox_autopager.stateChanged.connect(self.on_checkBox_autopager_stateChanged)
@@ -137,7 +145,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
         :return:
         '''
         if not self.lineEdit_url.text().strip():
-            show_dialog('请输入网址')
+            QMessageBox.warning(self, '警告', '请输入网址')
             return
         self._buildUrl(self.lineEdit_url.text())
         self.browser.load(QUrl(self._url))
@@ -153,10 +161,19 @@ class MainWin(QMainWindow, Ui_MainWindow):
     ##################################################################################################################
     @pyqtSlot(int)
     def on_browserLoadProcess(self, process):
+        '''
+        加载进度
+        :param process:
+        :return:
+        '''
         self.statusLabel.setText('加载进度{}%'.format(process))
 
     @pyqtSlot()
     def on_browserLoadFinished(self):
+        '''
+        加载完成
+        :return:
+        '''
         self.statusLabel.setText('页面加载完成')
 
         # self._auto_click("//a[starts-with(text(),'Next')]")
@@ -170,23 +187,36 @@ class MainWin(QMainWindow, Ui_MainWindow):
                 result.singleNodeValue.click();
             '''.format(xpath))
         except Exception as e:
-            show_dialog(e)
+            print(e)
+            QMessageBox.critical(self, '错误', str(e))
 
     ##################################################################################################################
 
     @pyqtSlot()
     def on_browserSelect(self):
+        '''
+        开始选择
+        :return:
+        '''
         self.browser.SELECT_FLAG = True
 
     @pyqtSlot()
     def on_browserUnselect(self):
+        '''
+        取消选择
+        :return:
+        '''
         self.browser.SELECT_FLAG = False
         self.browser.covering.hide()
 
     @pyqtSlot()
     def on_browserSelectParent(self):
+        '''
+        选择上一级
+        :return:
+        '''
         if self.browser.current_block is None:
-            show_dialog('请先选中元素')
+            QMessageBox.warning(self, '警告', '请先选中元素')
             return
         self.browser.current_block = self.browser.current_block.parent()
         self.browser.covering.hide()
@@ -203,22 +233,32 @@ class MainWin(QMainWindow, Ui_MainWindow):
 
     @pyqtSlot()
     def on_pushButton_pager_test_clicked(self):
-        xpath = self.lineEdit_pager_xpath.text()
-        if xpath is None or str(xpath).strip() == '':
-            show_dialog('请输入翻页表达式')
+        '''
+        测试翻页
+        :return:
+        '''
+        if self.browser.current_block is None:
+            QMessageBox.warning(self, '警告', '请先选中元素')
             return
+        xpath = self.lineEdit_pager_xpath.text()
+        if xpath is None or xpath.strip() == '':
+            html = self.browser.current_block.toOuterXml()
+            xpath = Utils.build_pager_express(html)
+            self.lineEdit_pager_xpath.setText(xpath)
         self._auto_click(xpath)
 
     @pyqtSlot()
     def on_extract_link(self):
+        '''
+        超链接
+        :return:
+        '''
         if self.browser.current_block is None:
-            show_dialog('请先选中元素')
+            QMessageBox.warning(self, '警告', '请先选中元素')
             return
 
-        data = self.browser.current_block.toOuterXml()
-        pretty = soup(data, 'html5lib').body
-
-        self.lineEdit_express.setText(parse(pretty, '@href'))
+        html = self.browser.current_block.toOuterXml()
+        self.lineEdit_express.setText(Utils.build_xpath_express(html, '@href'))
 
         values = [item.strip() for item in etree.HTML(self.browser.page().currentFrame().toHtml()).xpath(self.lineEdit_express.text())]
         self.plainTextEdit_field_value.setPlainText('\r\n\r\n'.join(values))
@@ -226,12 +266,15 @@ class MainWin(QMainWindow, Ui_MainWindow):
 
     @pyqtSlot()
     def on_extract_text(self):
+        '''
+        文本
+        :return:
+        '''
         if self.browser.current_block is None:
-            show_dialog('请先选中元素')
+            QMessageBox.warning(self, '警告', '请先选中元素')
             return
-        data = self.browser.current_block.toOuterXml()
-        pretty = soup(data, 'html5lib').body
-        self.lineEdit_express.setText(parse(pretty, 'text()'))
+        html = self.browser.current_block.toOuterXml()
+        self.lineEdit_express.setText(Utils.build_xpath_express(html, 'text()'))
 
         values = [item.strip() for item in etree.HTML(self.browser.page().currentFrame().toHtml()).xpath(self.lineEdit_express.text())]
         self.plainTextEdit_field_value.setPlainText('\r\n\r\n'.join(values))
@@ -243,15 +286,16 @@ class MainWin(QMainWindow, Ui_MainWindow):
         表达式地方，预览数据
         :return:
         '''
-        if self.lineEdit_express.text() is None:
-            show_dialog('请输入表达式')
+        if self.lineEdit_express.text() is None or self.lineEdit_express.text().strip() == '':
+            QMessageBox.warning(self, '警告', '请输入表达式')
             return
         try:
             values = [item.strip() for item in etree.HTML(self.browser.page().currentFrame().toHtml()).xpath(self.lineEdit_express.text())]
             self.plainTextEdit_field_value.setPlainText('\r\n\r\n'.join(values))
             self.statusLabel.setText('数据{}条'.format(len(values)))
         except Exception as e:
-            show_dialog(e)
+            print(e)
+            QMessageBox.critical(self, '错误', str(e))
 
     @pyqtSlot()
     def on_express_save_field(self):
@@ -274,7 +318,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
         :return:
         '''
         if self.browser.current_block is None:
-            show_dialog('请先选中元素')
+            QMessageBox.warning(self, '警告', '请先选中元素')
             return
         self.plainTextEdit_html.setPlainText(self.browser.current_block.toOuterXml())
         # data = self.browser.current_block.toOuterXml()
@@ -317,7 +361,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
 
     def on_fieldCopy_clicked(self):
         if self.current_item is None:
-            show_dialog('请先选择一个字段')
+            QMessageBox.warning(self, '警告', '请先选择一个字段')
             return
 
         self.on_fieldSave_clicked()
@@ -332,7 +376,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
         :return:
         '''
         if self.itemModel.rowCount() == 0:
-            show_dialog('请先添加一个字段')
+            QMessageBox.warning(self, '警告', '请先添加一个字段')
             return
         if self.current_item is None:
             self.current_item = self.itemModel.item(0, 0)
@@ -344,7 +388,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
 
     def on_fieldPreview_clicked(self):
         '''
-        预览数据
+        设计器——提取字段，预览数据
         :return:
         '''
         content = self.browser.page().currentFrame().toHtml()
@@ -367,7 +411,6 @@ class MainWin(QMainWindow, Ui_MainWindow):
                     else:
                         resu.append(value)
                 fieldModel.values = resu
-                self.task.log.info('解析字段', fieldModel.name, fieldModel.result)
 
                 self.itemModel.item(i, 0).setData(fieldModel)
 
@@ -382,7 +425,8 @@ class MainWin(QMainWindow, Ui_MainWindow):
             self.tableView_alldata.setModel(model)
             self.statusLabel.setText('正确显示数据')
         except Exception as exp:
-            show_dialog(str(exp))
+            print(exp)
+            QMessageBox.critical(self, '错误', str(exp))
 
 
     def on_export_clicked(self):
@@ -407,7 +451,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
             ws.write(0, i, labels[i])
 
         wb.save(os.path.join(os.path.join(os.path.expanduser('~'), "Desktop"), '爬虫数据.xls'))
-        show_dialog('数据已经保存到桌面')
+        QMessageBox.information(self, '提示', '数据已经保存到桌面')
 
     # def on_pager_preview_clicked(self):
     #     if self.checkBox_pager_is.isChecked():
@@ -445,14 +489,14 @@ class MainWin(QMainWindow, Ui_MainWindow):
     def on_saveFile_chooseName(self):
         dir_choose = QFileDialog.getExistingDirectory(self, "选取文件夹", os.path.join(os.path.expanduser('~'), "Desktop"))
         if dir_choose == "":
-            show_dialog('请选择一个文件夹')
+            QMessageBox.warning(self, '警告', '请选择一个文件夹')
             return
 
         self.lineEdit_savefile_filename.setText(dir_choose)
 
     def on_exportTask_clicked(self):
         if self.lineEdit_taskName.text() is None:
-            show_dialog('请输入任务名称')
+            QMessageBox.warning(self, '警告', '请输入任务名称')
             return
 
         try:
@@ -466,9 +510,10 @@ class MainWin(QMainWindow, Ui_MainWindow):
 
             with open(os.path.join(os.path.join(os.path.expanduser('~'), "Desktop"), '爬虫任务.txt'), 'w', encoding='utf8') as file:
                 file.write(json.dumps(task.__dict__, ensure_ascii=False))
-            show_dialog('数据已经保存到桌面')
+            QMessageBox.information(self, '提示', '数据已经保存到桌面')
         except Exception as exp:
-            show_dialog(str(exp))
+            print(exp)
+            QMessageBox.critical(self, '错误', str(exp))
 
 
 
