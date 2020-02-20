@@ -82,7 +82,6 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.setWindowTitle(TITLE)
         self.showMaximized()
 
-
         self._choose_block_signal.connect(self.on_browserContent)
         self.current_item = None
         self._url = ''
@@ -94,8 +93,6 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.browser = WebEngineView(self._choose_block_signal)
         self.browser.page().setLinkDelegationPolicy(QWebPage.DelegateAllLinks)
         self.verticalLayout_browser.addWidget(self.browser)
-
-        self.widget_autopagermode.hide()
 
         self.browser.loadFinished.connect(self.on_browserLoadFinished)
         self.browser.loadProgress.connect(self.on_browserLoadProcess)
@@ -111,15 +108,10 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.pushButton_express_save_field.clicked.connect(self.on_express_save_field)
         self.pushButton_browserSelectParent.clicked.connect(self.on_browserSelectParent)
 
-        self.checkBox_autopager.stateChanged.connect(self.on_checkBox_autopager_stateChanged)
-        self.pushButton_pager_test.clicked.connect(self.on_pushButton_pager_test_clicked)
-        self.field_group = QButtonGroup()
-
         self.itemModel = QStandardItemModel()
         self.itemModel.dataChanged.connect(self.on_fields_model_dataChanged)
         self.listView_fields.setModel(self.itemModel)
         self.listView_fields.clicked.connect(self.on_fields_clicked)
-
 
         self.pushButton_fieldAdd.clicked.connect(self.on_fieldAdd_clicked)
         self.pushButton_fieldRemove.clicked.connect(self.on_fieldRemove_clicked)
@@ -127,13 +119,6 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.pushButton_fieldSave.clicked.connect(self.on_fieldSave_clicked)
         self.pushButton_fieldPreview.clicked.connect(self.on_fieldPreview_clicked)
         self.pushButton_export.clicked.connect(self.on_export_clicked)
-
-        self.groupBox_saveFile.hide()
-        self.groupBox_savemysql.hide()
-        self.checkBox_savefile_is.stateChanged.connect(self.on_checkBox_savefile_is_stateChanged)
-        self.checkBox_savemysql_is.stateChanged.connect(self.on_checkBox_savemysql_is_stateChanged)
-        self.pushButton_saveFile_chooseName.clicked.connect(self.on_saveFile_chooseName)
-        self.pushButton_exportTask.clicked.connect(self.on_exportTask_clicked)
 
         self.browser.load(QUrl('http://www.cnblogs.com'))
 
@@ -223,29 +208,6 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.browser._initCover()
 
         self.on_browserContent()
-
-    @pyqtSlot(int)
-    def on_checkBox_autopager_stateChanged(self, state):
-        if state:
-            self.widget_autopagermode.show()
-        else:
-            self.widget_autopagermode.hide()
-
-    @pyqtSlot()
-    def on_pushButton_pager_test_clicked(self):
-        '''
-        测试翻页
-        :return:
-        '''
-        if self.browser.current_block is None:
-            QMessageBox.warning(self, '警告', '请先选中元素')
-            return
-        xpath = self.lineEdit_pager_xpath.text()
-        if xpath is None or xpath.strip() == '':
-            html = self.browser.current_block.toOuterXml()
-            xpath = Utils.build_pager_express(html)
-            self.lineEdit_pager_xpath.setText(xpath)
-        self._auto_click(xpath)
 
     @pyqtSlot()
     def on_extract_link(self):
@@ -466,56 +428,6 @@ class MainWin(QMainWindow, Ui_MainWindow):
     #             self.statusLabel.setText('正确显示数据')
     #         except Exception as e:
     #             showDialog(str(e))
-
-    @pyqtSlot(int)
-    def on_checkBox_savefile_is_stateChanged(self, state):
-        if state:
-            self.groupBox_saveFile.show()
-        else:
-            self.groupBox_saveFile.hide()
-
-    @pyqtSlot(int)
-    def on_checkBox_savemysql_is_stateChanged(self, state):
-        '''
-        是否保存到mysql中
-        :param state:
-        :return:
-        '''
-        if state:
-            self.groupBox_savemysql.show()
-        else:
-            self.groupBox_savemysql.hide()
-
-    def on_saveFile_chooseName(self):
-        dir_choose = QFileDialog.getExistingDirectory(self, "选取文件夹", os.path.join(os.path.expanduser('~'), "Desktop"))
-        if dir_choose == "":
-            QMessageBox.warning(self, '警告', '请选择一个文件夹')
-            return
-
-        self.lineEdit_savefile_filename.setText(dir_choose)
-
-    def on_exportTask_clicked(self):
-        if self.lineEdit_taskName.text() is None:
-            QMessageBox.warning(self, '警告', '请输入任务名称')
-            return
-
-        try:
-            task = Task(self.lineEdit_taskName.text())
-            task.source = self.plainTextEdit_urls.toPlainText().split('\n')
-            for i in range(self.itemModel.rowCount()):
-                task.fields.append(self.itemModel.item(i, 0).data().__dict__)
-
-            if self.checkBox_savefile_is.isChecked():
-                task.sinks.append(FileSink(self.lineEdit_savefile_filename.text(), self.lineEdit_savefile_sep.text()).__dict__)
-
-            with open(os.path.join(os.path.join(os.path.expanduser('~'), "Desktop"), '爬虫任务.txt'), 'w', encoding='utf8') as file:
-                file.write(json.dumps(task.__dict__, ensure_ascii=False))
-            QMessageBox.information(self, '提示', '数据已经保存到桌面')
-        except Exception as exp:
-            print(exp)
-            QMessageBox.critical(self, '错误', str(exp))
-
-
 
 
 
