@@ -1,6 +1,7 @@
 '''
 工具模块
 '''
+from lxml import etree
 from bs4 import Tag
 from bs4 import BeautifulSoup as soup
 
@@ -19,7 +20,7 @@ class Utils:
             if bs4_tag.attrs:
                 for key, value in bs4_tag.attrs.items():
                     if key in set(['id', 'class', 'style']):
-                        exp = '''//{}[@{}='{}']'''.format(bs4_tag.name, key, ' '.join(value))
+                        exp = '''//{}[@{}='{}']'''.format(bs4_tag.name, key, ''.join(value))
                         return exp
                 return '//' + bs4_tag.name
             return '//'+bs4_tag.name
@@ -40,50 +41,11 @@ class Utils:
         return ''.join(tags)
 
     @staticmethod
-    def build_pager_express(html):
+    def run_xpath(html, xpath):
         '''
-        生成xpath表达式
-        :param bs4_tag:
-        :param style:
+        执行xpath表达式
+        :param html:
+        :param xpath:
         :return:
         '''
-        bs4_tag = soup(html, 'html5lib').body
-
-        tags = []
-        # def _parse_text(bs4_tag):
-        #     if bs4_tag.attrs:
-        #         for key, value in bs4_tag.attrs.items():
-        #             if key in set(['id', 'class', 'style']):
-        #                 exp = '''//{}[@{}='{}']'''.format(bs4_tag.name, key, ' '.join(value))
-        #                 return exp
-        #         return '//' + bs4_tag.name
-        #     return '//'+bs4_tag.name
-        #
-        def _parse_child(tag):
-            if tag is None:
-                return None
-            print(tag.next)
-            if Utils.isNextPageTag(tag.string):
-                return True
-            for item in tag.children:
-                if isinstance(item, Tag):
-                    print(item.text)
-                    return _parse_child(item)
-        ret = _parse_child(bs4_tag)
-        print(ret)
-
-    @staticmethod
-    def isNextPageTag(s):
-        '''
-        是否翻页字符串
-        :param s:
-        :return:
-        '''
-        if s is None or s.strip() == '':
-            return False
-        s = str(s).strip().lower()
-        names = ['next', '下一页']
-        for name in names:
-            if s.find(name)>-1:
-                return True
-        return False
+        return [item.strip() for item in etree.HTML(html).xpath(xpath)]
