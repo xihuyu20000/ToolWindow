@@ -21,7 +21,7 @@
   </property>
   <property name="windowIcon">
    <iconset>
-    <normaloff>icon.ico</normaloff>icon.ico</iconset>
+    <normaloff>C:/Users/Administrator/.designer/backup/icon.ico</normaloff>C:/Users/Administrator/.designer/backup/icon.ico</iconset>
   </property>
   <property name="styleSheet">
    <string notr="true"/>
@@ -892,7 +892,7 @@ p, li { white-space: pre-wrap; }
               </widget>
              </item>
              <item>
-              <widget class="QPlainTextEdit" name="plainTextEdit_field_value"/>
+              <widget class="QListWidget" name="listWidget_field_value"/>
              </item>
             </layout>
            </widget>

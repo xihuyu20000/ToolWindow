@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'SpiderTool.ui'
 #
-# Created by: PyQt5 UI code generator 5.14.1
+# Created by: PyQt5 UI code generator 5.13.0
 #
 # WARNING! All changes made in this file will be lost!
 
@@ -20,7 +20,7 @@ class Ui_MainWindow(object):
         sizePolicy.setHeightForWidth(MainWindow.sizePolicy().hasHeightForWidth())
         MainWindow.setSizePolicy(sizePolicy)
         icon = QtGui.QIcon()
-        icon.addPixmap(QtGui.QPixmap("icon.ico"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon.addPixmap(QtGui.QPixmap("C:/Users/Administrator/.designer/backup/icon.ico"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         MainWindow.setWindowIcon(icon)
         MainWindow.setStyleSheet("")
         self.centralwidget = QtWidgets.QWidget(MainWindow)
@@ -378,9 +378,9 @@ class Ui_MainWindow(object):
         self.pushButton_extract_preview.setObjectName("pushButton_extract_preview")
         self.horizontalLayout_18.addWidget(self.pushButton_extract_preview)
         self.verticalLayout_13.addWidget(self.widget_20)
-        self.plainTextEdit_field_value = QtWidgets.QPlainTextEdit(self.widget_17)
-        self.plainTextEdit_field_value.setObjectName("plainTextEdit_field_value")
-        self.verticalLayout_13.addWidget(self.plainTextEdit_field_value)
+        self.listWidget_field_value = QtWidgets.QListWidget(self.widget_17)
+        self.listWidget_field_value.setObjectName("listWidget_field_value")
+        self.verticalLayout_13.addWidget(self.listWidget_field_value)
         self.verticalLayout_8.addWidget(self.widget_17)
         self.verticalLayout_8.setStretch(0, 5)
         self.verticalLayout_8.setStretch(2, 5)

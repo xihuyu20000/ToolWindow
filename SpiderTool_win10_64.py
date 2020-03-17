@@ -4,17 +4,20 @@
 import sys
 import os
 import copy
-import xlwt
 
-from PyQt5.QtCore import QUrl, pyqtSlot, QSize, QPoint, pyqtSignal
+import PyQt5
+import xlwt
+from PyQt5 import QtCore
+
+from PyQt5.QtCore import QUrl, pyqtSlot, QSize, QPoint, pyqtSignal, Qt
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWebKitWidgets import QWebPage, QWebView
-from PyQt5.QtWidgets import QMainWindow, QApplication, QMessageBox
+from PyQt5.QtWidgets import QMainWindow, QApplication, QMessageBox, QListWidgetItem
 from PyQt5.QtWidgets import QLabel
 
-from qtpy import QtCore
-
 import execjs
+from lxml import etree
+from urllib import parse
 from SpiderTool import Ui_MainWindow
 from model import FieldModel
 
@@ -65,7 +68,7 @@ class WebEngineView(QWebView):
 
     def mousePressEvent(self, event):
 
-        if self.SELECT_FLAG and event.buttons() == QtCore.Qt.LeftButton:
+        if self.SELECT_FLAG and event.buttons() == Qt.LeftButton:
             self.covering.hide()
             self.current_block = self.page().currentFrame().hitTestContent(event.pos()).element()
             self._initCover()
@@ -117,7 +120,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.pushButton_fieldPreview.clicked.connect(self.on_fieldPreview_clicked)
         self.pushButton_export.clicked.connect(self.on_export_clicked)
 
-        self.browser.load(QUrl('http://www.cnblogs.com'))
+        # self.browser.load(QUrl('http://www.cnblogs.com'))
 
 
     @pyqtSlot()
@@ -129,6 +132,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
         if not self.lineEdit_url.text().strip():
             QMessageBox.warning(self, '警告', '请输入网址')
             return
+        self.lineEdit_url.setText(parse.unquote(self.lineEdit_url.text()))
         self._buildUrl(self.lineEdit_url.text())
         self.browser.load(QUrl(self._url))
 
@@ -220,7 +224,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.lineEdit_express.setText(Utils.build_xpath_express(html, '@href'))
 
         values = Utils.run_xpath(self.browser.page().currentFrame().toHtml(), self.lineEdit_express.text())
-        self.plainTextEdit_field_value.setPlainText('\r\n\r\n'.join(values))
+        self.show_values(values)
         self.statusLabel.setText('数据{}条'.format(len(values)))
 
     @pyqtSlot()
@@ -236,7 +240,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
         self.lineEdit_express.setText(Utils.build_xpath_express(html, 'text()'))
 
         values = Utils.run_xpath(self.browser.page().currentFrame().toHtml(), self.lineEdit_express.text())
-        self.plainTextEdit_field_value.setPlainText('\r\n\r\n'.join(values))
+        self.show_values(values)
         self.statusLabel.setText('数据{}条'.format(len(values)))
 
     @pyqtSlot()
@@ -250,7 +254,7 @@ class MainWin(QMainWindow, Ui_MainWindow):
             return
         try:
             values = Utils.run_xpath(self.browser.page().currentFrame().toHtml(), self.lineEdit_express.text())
-            self.plainTextEdit_field_value.setPlainText('\r\n\r\n'.join(values))
+            self.show_values(values)
             self.statusLabel.setText('数据{}条'.format(len(values)))
         except Exception as e:
 
@@ -280,7 +284,8 @@ class MainWin(QMainWindow, Ui_MainWindow):
         if self.browser.current_block is None:
             QMessageBox.warning(self, '警告', '请先选中元素')
             return
-        self.plainTextEdit_html.setPlainText(self.browser.current_block.toOuterXml())
+        unquote = parse.unquote(self.browser.current_block.toOuterXml())
+        self.plainTextEdit_html.setPlainText(unquote)
         # data = self.browser.current_block.toOuterXml()
         #
         #
@@ -412,6 +417,15 @@ class MainWin(QMainWindow, Ui_MainWindow):
 
         wb.save(os.path.join(os.path.join(os.path.expanduser('~'), "Desktop"), '爬虫数据.xls'))
         QMessageBox.information(self, '提示', '数据已经保存到桌面')
+
+    def show_values(self, values):
+        self.listWidget_field_value.clear()
+        for index, value in enumerate(values):
+            item = QListWidgetItem()
+            item.setFlags(Qt.ItemIsSelectable)
+            item.setText('【'+str(index+1)+'】'+value)
+            item.setFlags(QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable)
+            self.listWidget_field_value.addItem(item)
 
     # def on_pager_preview_clicked(self):
     #     if self.checkBox_pager_is.isChecked():
